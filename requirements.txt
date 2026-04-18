@@ -1,0 +1,11 @@
+streamlit
+opencv-python-headless
+mediapipe
+yt-dlp
+pandas
+joblib
+scikit-learn
+matplotlib
+numpy
+skl2onnx
+onnx
