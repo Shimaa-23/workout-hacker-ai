@@ -1,0 +1,19 @@
+{
+  "version": "v1.0",
+  "model": "RandomForestClassifier",
+  "n_estimators": 100,
+  "n_features": 40,
+  "overall_accuracy": 0.9469,
+  "f1_macro": 0.945,
+  "g_mean": 0.944,
+  "train_samples": 2335,
+  "test_samples": 584,
+  "label_map": {
+    "1": "low",
+    "2": "moderate",
+    "3": "high",
+    "4": "very_high"
+  },
+  "random_state": 42,
+  "dataset": "IMU\u2013Gait\u2013EMG Fatigue Dataset (figshare 15104079)"
+}

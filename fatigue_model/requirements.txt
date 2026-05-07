@@ -1,0 +1,20 @@
+# Core ML
+
+scikit-learn>=1.2.0
+
+# Data handling (training only)
+
+pandas>=1.5.0
+numpy>=1.23.0
+
+# Excel support (required for pandas.read_excel)
+
+openpyxl>=3.1.0
+
+# Model saving/loading
+
+joblib>=1.2.0
+
+# Scientific computing
+
+scipy>=1.9.0
