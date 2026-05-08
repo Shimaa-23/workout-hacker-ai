@@ -124,25 +124,7 @@ print(recommendation)
 
 ---
 
-##  Design Decisions
 
-### ✔ No Feature Scaling
-
-Random Forest is a tree-based model and **does not require feature scaling**.
-The model is trained and used without scaling to ensure consistent behavior between training and inference.
-
----
-
-### ✔ Missing Feature Handling
-
-Missing features are filled using **training-set mean values**, not zeros.
-
-This improves robustness when:
-
-* Sensors temporarily fail
-* Partial data is received
-
----
 
 ### ✔ Rest Smoothing
 
@@ -150,13 +132,7 @@ This improves robustness when:
 
 ---
 
-### ✔ Feature Extraction
 
-Feature extraction (EMG RMS, IMU statistics) is performed on the **ESP32 firmware** in real-time.
-
-For reproducibility and testing, a Python implementation can be added.
-
----
 
 ##  Model Performance
 
@@ -182,44 +158,9 @@ For reproducibility and testing, a Python implementation can be added.
 
 ---
 
-##  Project Structure
 
-```
-fatigue_model/
-├── train_and_save.py
-├── fatigue_predictor.py
-├── rest_recommender.py
-├── smoke_test.py
-├── requirements.txt
-├── data/
-│   └── database.xlsx
-└── model/
-    ├── fatigue_rf_model.joblib
-    ├── feature_list.json
-    ├── feature_means.json
-    ├── label_map.json
-    └── model_metadata.json
-```
 
----
 
-##  System Context
-
-* ESP32 computes features (EMG + IMU)
-* Data sent via MQTT
-* App calls `FatiguePredictor`
-* `RestRecommender` smooths output for real-time coaching
-
----
-
-##  Key Insight
-
-* EMG → **muscle fatigue (primary signal)**
-* IMU → **movement degradation (support signal)**
-
-Combining both improves prediction reliability.
-
----
 
 ##  Notes
 
