@@ -316,9 +316,9 @@ class RepCounterInterface:
                 self.phase="DOWN"
 
         elif ex=="shoulder_press":
-            if wrist_y < nose_y:
+            if wrist_y < nose_y  - 0.35:
                 self.phase="UP"
-            elif wrist_y > shoulder_y:
+            elif wrist_y > shoulder_y - 0.25:
                 self.phase="DOWN"
 
         elif ex=="push_up":
