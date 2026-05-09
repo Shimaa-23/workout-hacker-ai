@@ -113,11 +113,12 @@ class RepCounterInterface:
         'bicep_curl','tricep_extension','lateral_raise','shoulder_press'
     ]
 
-    def __init__(self,model_path='Combined_model.pth',inference_every=5,min_confidence=0.6):
+    def __init__(self,model_path='Combined_model.pth',inference_every=5,min_confidence=0.6,force_exercise=None):
 
         self.device=torch.device('cpu')
         self.inference_every=inference_every
         self.min_confidence=min_confidence
+        self.force_exercise=force_exercise
 
         ckpt=torch.load(model_path,map_location=self.device,weights_only=False)
         cfg=ckpt['config']
@@ -146,13 +147,21 @@ class RepCounterInterface:
         self.exercise=None
         self.confidence=0.0
 
-        # 🔥 new state
         self.last_elbow=None
         self.current_rep_max_swing=0
         self.swing_threshold=80
         self.swing_ok=True
         self.min_elbow=999
         self.max_elbow=0
+
+        self.active_arm=None
+
+        # ===== PHASE CONFIRMATION BUFFER =====
+        # A new phase only commits after being seen N frames in a row.
+        # This kills single-frame flickers completely.
+        self.phase_candidate=None
+        self.phase_candidate_count=0
+        self.PHASE_CONFIRM_FRAMES=3   # tune: higher = more stable, slightly more lag
 
     def update(self,landmarks):
         if landmarks is None:
@@ -175,6 +184,12 @@ class RepCounterInterface:
         return self._state()
 
     def _run_inference(self):
+
+        if self.force_exercise is not None:
+            self.exercise=self.force_exercise
+            self.confidence=1.0
+            return
+
         frames=list(self.buffer)
         n=len(frames)
 
@@ -196,7 +211,39 @@ class RepCounterInterface:
             self.exercise=self.classes[idx]
             self.confidence=conf
 
-    # ================= FINAL LOGIC =================
+    def _confirm_phase(self, candidate):
+        """
+        Only commit to a new phase after seeing it PHASE_CONFIRM_FRAMES
+        consecutive frames. Eliminates flicker from noisy single frames.
+        Returns the phase that should actually be used this frame.
+        """
+        if candidate == self.phase:
+            # Already in this phase — reset candidate streak
+            self.phase_candidate = None
+            self.phase_candidate_count = 0
+            return self.phase
+
+        if candidate is None:
+            # In dead zone — hold current phase
+            return self.phase
+
+        if candidate == self.phase_candidate:
+            self.phase_candidate_count += 1
+        else:
+            # New candidate — start counting
+            self.phase_candidate = candidate
+            self.phase_candidate_count = 1
+
+        if self.phase_candidate_count >= self.PHASE_CONFIRM_FRAMES:
+            # Confirmed — commit to new phase
+            self.phase_candidate = None
+            self.phase_candidate_count = 0
+            return candidate
+
+
+        return self.phase
+
+    # ================= PHASE LOGIC =================
     def _update_phase(self,kps):
 
         if self.exercise is None:
@@ -220,32 +267,51 @@ class RepCounterInterface:
 
         ex=self.exercise
 
-        # ===== BICEP CURL =====
         if ex=="bicep_curl":
 
-            r_swing=_angle_between(_get_lm(kps,R_ELBOW),_get_lm(kps,R_SHOULDER),_get_lm(kps,R_HIP))
-            l_swing=_angle_between(_get_lm(kps,L_ELBOW),_get_lm(kps,L_SHOULDER),_get_lm(kps,L_HIP))
+            r_swing=_angle_between(
+                _get_lm(kps,R_ELBOW),
+                _get_lm(kps,R_SHOULDER),
+                _get_lm(kps,R_HIP)
+            )
+            l_swing=_angle_between(
+                _get_lm(kps,L_ELBOW),
+                _get_lm(kps,L_SHOULDER),
+                _get_lm(kps,L_HIP)
+            )
 
-            r_vis=min(kps[R_SHOULDER*4+3],kps[R_ELBOW*4+3],kps[R_WRIST*4+3])
-            l_vis=min(kps[L_SHOULDER*4+3],kps[L_ELBOW*4+3],kps[L_WRIST*4+3])
+            # Always follow the most bent arm (smallest angle = most curled)
+            if l_elbow <= r_elbow:
+                elbow=l_elbow
+                swing=l_swing
+                self.active_arm='left'
+            else:
+                elbow=r_elbow
+                swing=r_swing
+                self.active_arm='right'
 
-            r_w=max(r_vis,0.1)
-            l_w=max(l_vis,0.1)
-
-            elbow=(r_elbow*r_w+l_elbow*l_w)/(r_w+l_w)
-            swing=(r_swing*r_w+l_swing*l_w)/(r_w+l_w)
-
+            # ===== SMOOTHING =====
             if self.last_elbow is None:
                 self.last_elbow=elbow
 
-            elbow=0.7*self.last_elbow+0.3*elbow
+            elbow=0.4*self.last_elbow+0.6*elbow
             self.last_elbow=elbow
 
-            if elbow<100:
-                self.phase="UP"
-            elif elbow>130:
-                self.phase="DOWN"
+            # ===== PHASE CANDIDATE (with dead zone between 110 and 130) =====
+            # Angles below 110  → candidate UP
+            # Angles above 130  → candidate DOWN
+            # Angles 110–130    → dead zone, hold current phase (no candidate)
+            if elbow < 110:
+                candidate="UP"
+            elif elbow > 130:
+                candidate="DOWN"
+            else:
+                candidate=None  # dead zone — hold current phase
 
+            # Only commit to the new phase after N stable frames
+            self.phase=self._confirm_phase(candidate)
+
+            # ===== SWING CHECK =====
             if self.phase=="DOWN":
                 self.current_rep_max_swing=max(self.current_rep_max_swing,swing)
                 if swing>self.swing_threshold:
@@ -261,7 +327,6 @@ class RepCounterInterface:
 
             return
 
-        # ===== TRICEP EXTENSION =====
         elif ex=="tricep_extension":
 
             if r_elbow>l_elbow:
@@ -302,23 +367,22 @@ class RepCounterInterface:
 
             return
 
-        # ===== OTHER EXERCISES =====
         if ex=="front_raise":
-            if wrist_y < shoulder_y:
+            if wrist_y<shoulder_y:
                 self.phase="UP"
-            elif wrist_y > shoulder_y+0.10:
+            elif wrist_y>shoulder_y+0.10:
                 self.phase="DOWN"
 
         elif ex=="lateral_raise":
-            if wrist_y < shoulder_y:
+            if wrist_y<shoulder_y:
                 self.phase="UP"
-            elif wrist_y > shoulder_y+0.10:
+            elif wrist_y>shoulder_y+0.10:
                 self.phase="DOWN"
 
         elif ex=="shoulder_press":
-            if wrist_y < nose_y  - 0.35:
+            if wrist_y<nose_y-0.35:
                 self.phase="UP"
-            elif wrist_y > shoulder_y - 0.25:
+            elif wrist_y>shoulder_y-0.25:
                 self.phase="DOWN"
 
         elif ex=="push_up":
@@ -347,5 +411,6 @@ class RepCounterInterface:
             'exercise':self.exercise,
             'reps':self.reps,
             'confidence':round(self.confidence,3),
-            'phase':self.phase
+            'phase':self.phase,
+            'active_arm':self.active_arm
         }
