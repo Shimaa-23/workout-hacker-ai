@@ -8,7 +8,7 @@ It predicts user fatigue level using **EMG (muscle activity)** and **IMU (moveme
 
 ---
 
-## 🚀 Quick Start (Integration Team)
+## ] Quick Start (Integration Team)
 
 ### 1. Install dependencies
 
@@ -45,7 +45,7 @@ This generates the following artefacts inside `model/`:
 | `label_map.json`          | Label → fatigue level           |
 | `model_metadata.json`     | Performance + version info      |
 
-> ✅ **Commit the `model/` folder** so other teams don’t need to retrain.
+>  **Commit the `model/` folder** so other teams don't need to retrain.
 
 ---
 
@@ -63,19 +63,15 @@ Ensures:
 
 ---
 
-## 🧠 Integration Guide
+## Integration Guide
+
+### 🔹 Single Prediction (dict input)
 
 ```python
 from fatigue_predictor import FatiguePredictor
 
 predictor = FatiguePredictor()
-```
 
----
-
-### 🔹 Single Prediction (dict input)
-
-```python
 sensor_reading = {
     "emg_rms_rectusFemoris": 0.042,
     "emg_rms_bicepsFemoris": 0.038,
@@ -104,35 +100,41 @@ print(predictor.feature_names)
 
 ---
 
-## ⚙️ Design Decisions
+### 🔹 Rest Recommendation
 
-### ✔ No Feature Scaling
+Use `RestRecommender` after each prediction to get a smoothed action recommendation based on the last 3 readings:
 
-Random Forest is a tree-based model and **does not require feature scaling**.
-The model is trained and used without scaling to ensure consistent behavior between training and inference.
+```python
+from rest_recommender import RestRecommender
 
----
+recommender = RestRecommender()
 
-### ✔ Missing Feature Handling
+recommendation = recommender.update(result)  # result from predictor.predict()
+print(recommendation)
+# Example output:
+# {"action": "rest_suggested", "message": "Take a break", "rest": True}
+```
 
-Missing features are filled using **training-set mean values**, not zeros.
-
-This improves robustness when:
-
-* Sensors temporarily fail
-* Partial data is received
-
----
-
-### ✔ Feature Extraction
-
-Feature extraction (EMG RMS, IMU statistics) is performed on the **ESP32 firmware** in real-time.
-
-For reproducibility and testing, a Python implementation can be added.
+| Action          | Fatigue Level | Meaning                  |
+| --------------- | ------------- | ------------------------ |
+| `continue`      | Low           | Keep going               |
+| `warning`       | Moderate      | Slow down                |
+| `rest_suggested`| High          | Take a break             |
+| `rest_required` | Very High     | Stop immediately         |
 
 ---
 
-## 🧪 Model Performance
+
+
+### ✔ Rest Smoothing
+
+`RestRecommender` applies a **majority vote over the last 3 readings** before issuing an action. This prevents noisy single-reading spikes from triggering unnecessary rest alerts.
+
+---
+
+
+
+##  Model Performance
 
 | Metric        | Value         |
 | ------------- | ------------- |
@@ -145,7 +147,7 @@ For reproducibility and testing, a Python implementation can be added.
 
 ---
 
-## 📊 Fatigue Levels
+##  Fatigue Levels
 
 | Label | Level     | Meaning          |
 | ----- | --------- | ---------------- |
@@ -156,53 +158,14 @@ For reproducibility and testing, a Python implementation can be added.
 
 ---
 
-## 📁 Project Structure
 
-```
-fatigue_model/
-├── train_and_save.py
-├── fatigue_predictor.py
-├── smoke_test.py
-├── requirements.txt
-├── data/
-│   └── database.xlsx
-└── model/
-    ├── fatigue_rf_model.joblib
-    ├── feature_list.json
-    ├── feature_means.json
-    ├── label_map.json
-    └── model_metadata.json
-```
 
----
 
-## 🔗 System Context
 
-* ESP32 computes features (EMG + IMU)
-* Data sent via MQTT
-* App calls `FatiguePredictor`
-* Output used for real-time coaching
-
----
-
-## 🧠 Key Insight
-
-* EMG → **muscle fatigue (primary signal)**
-* IMU → **movement degradation (support signal)**
-
-Combining both improves prediction reliability.
-
----
-
-## 📌 Notes
+##  Notes
 
 * Model versioning is included in `model_metadata.json`
 * No internet required for inference
 * Runs in real-time (<10 ms per prediction)
 
----
 
-## 📖 Reference
-
-See project documentation:
-`Graduation_project_documentation_team25.pdf` §4.6.8

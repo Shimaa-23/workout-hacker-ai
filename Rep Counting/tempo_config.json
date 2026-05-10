@@ -1,0 +1,27 @@
+{
+  "feature_cols": [
+    "duration_s",
+    "half1_s",
+    "half2_s",
+    "half_ratio",
+    "exercise_enc"
+  ],
+  "exercise_classes": [
+    "bench_pressing",
+    "front_raise",
+    "jump_jack",
+    "pommelhorse",
+    "pull_up",
+    "push_up",
+    "situp",
+    "squat"
+  ],
+  "tempo_classes": [
+    "fast",
+    "normal",
+    "slow"
+  ],
+  "fps": 30,
+  "fast_thresh": 1,
+  "slow_thresh": 3.5
+}
