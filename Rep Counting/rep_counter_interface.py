@@ -303,7 +303,7 @@ class RepCounterInterface:
             # Angles 110–130    → dead zone, hold current phase (no candidate)
             if elbow < 110:
                 candidate="UP"
-            elif elbow > 130:
+            elif elbow > 120:
                 candidate="DOWN"
             else:
                 candidate=None  # dead zone — hold current phase
@@ -380,10 +380,11 @@ class RepCounterInterface:
                 self.phase="DOWN"
 
         elif ex=="shoulder_press":
-            if wrist_y<nose_y-0.35:
+            if wrist_y < nose_y -0.15:
                 self.phase="UP"
-            elif wrist_y>shoulder_y-0.25:
+            elif wrist_y > shoulder_y -0.25:
                 self.phase="DOWN"
+            
 
         elif ex=="push_up":
             if elbow_avg>145:
